@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""PhpSploit: Furtive post-exploitation framework
+
+PhpSploit is a remote control framework, aiming to provide a stealth
+interactive shell-like connection over HTTP between client and web server.
+
+It is a post-exploitation tool capable to maintain access to a compromised
+web server for privilege escalation purposes.
+
+https://github.com/nil0x42/phpsploit
+"""
+import sys
+import os
+
+
+VERSION = "3.0"
+
+if sys.platform.lower().startswith('win'):
+    sys.exit('[-] If you use Windows, you should be '
+             'a TARGET rather than an attacker ...')
+
+try:
+    import src  # spread phpsploit sources
+
+    import random
+    import argparse
+    import subprocess as sp
+
+    import core
+    import ui.input
+    import ui.output
+    import ui.interface
+    from ui.color import colorize
+    from datatypes import Path
+except KeyboardInterrupt:
+    sys.exit("\r[-] PhpSploit initialization interrupted")
+
+
+
+def parser_help_formatter(prog):
+    """argparser help output formatter"""
+    kwargs = dict()
+    kwargs['width'] = ui.output.columns()
+    kwargs['max_help_position'] = 34
+    fmt = argparse.HelpFormatter(prog, **kwargs)
+    return fmt
+
+
+def build_parser():
+    """build argparse parser"""
+    p = argparse.ArgumentParser()
+    p.formatter_class = parser_help_formatter
+    p.description = "The stealth post-exploitation framework"
+    p.add_argument('-c', '--config',
+                   help="use alternative configuration file",
+                   metavar="<FILE>")
+    p.add_argument('-l', '--load',
+                   help="load session file",
+                   metavar="<SESSION>")
+    p.add_argument('-t', '--target',
+                   help="set remote TARGET URL",
+                   metavar="<URL>")
+    p.add_argument('-s', '--source',
+                   help="run commands from file (disables interactive mode)",
+                   metavar="<FILE>")
+    p.add_argument('-e', '--eval',
+                   help="run phpsploit command (disables interactive mode)",
+                   metavar="<CMD>")
+    p.add_argument('-i', '--interactive',
+                   help="force interactive mode if unset by `-e` or `-s`",
+                   action="store_true")
+    return p
+
+
+def run_process(cmd: list) -> str:
+    """get output of given shell command"""
+    child = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.DEVNULL)
+    streamdata = child.communicate()[0]
+    if child.returncode != 0:
+        return ""
+    return streamdata.decode("utf-8").strip()
+
+
+def rand_message() -> str:
+    """return a random funny message"""
+    msg_list = Path(src.BASEDIR + "data/messages.lst").readlines()
+    return random.choice(msg_list).strip()
+
+
+def cmdrun(iface, cmdobj, show_err=False) -> int:
+    """run a phpsploit command
+    handle syntax errors & return command's retcode
+    """
+    try:
+        retval = iface.interpret(cmdobj)
+        if retval != 0 and show_err and iface.last_exception:
+            iface.interpret("corectl stack-traceback")
+    except (SyntaxWarning, SyntaxError) as err:
+        retval = iface.onexception(err)
+    return retval
+
+
+# pylint: disable=too-many-branches
+def main() -> int:
+    """phpsploit's main function
+    """
+    # Make phpsploit usable as shebang for scripting
+    if len(sys.argv) == 2 and os.path.isfile(sys.argv[1]):
+        sys.argv.insert(1, "--source")
+
+    parser = build_parser()
+    opt = vars(parser.parse_args())
+
+
+    # Enable stdout wrapper
+    sys.stdout = ui.output.Wrapper(backlog=True)
+
+    # determine if the interface would run in interactive mode
+    interactive = False
+    if ui.input.isatty():
+        if (not opt['eval'] and not opt['source']) or opt['interactive']:
+            interactive = True
+
+    # make this variable accessible from phpsploit core
+    ui.interface.interactive = interactive
+
+    # Start shell interface
+    iface = ui.interface.Shell()
+
+    if opt['config'] is None:
+        opt['config'] = core.USERDIR + "config"
+
+    if cmdrun(iface, "source -e '%s'" % opt['config'], show_err=True) != 0:
+        print()
+        parser.error("%r: config file contains invalid commands."
+                     % opt['config'])
+    elif interactive and ui.output.isatty():
+        logo = Path(src.BASEDIR + "data/logo.ascii").read()
+        cmdrun(iface, "lrun clear")
+        #print(logo + '\n\n')
+        #print(colorize("%Bold", "# Stealth post-exploitation framework\n"))
+        #print(colorize("%DimWhite", rand_message()))
+        cmdrun(iface, "help")
+
+    iface.init()
+
+    if opt['load']:
+        if cmdrun(iface, "session load '%s'" % opt['load']) != 0:
+            print()
+            parser.error("%r: invalid session file." % opt['load'])
+
+    if opt['target']:
+        if cmdrun(iface, "set TARGET '%s'" % opt['target']) != 0:
+            print()
+            parser.error("%r: couldn't set target url." % opt['target'])
+
+    if opt['source']:
+        if cmdrun(iface, "source '%s'" % opt['source']) != 0:
+            print()
+            parser.error("%r: couldn't read source file." % opt['source'])
+
+    retval = 0
+    if opt['eval']:
+        retval = cmdrun(iface, opt['eval'])
+
+    if interactive or not ui.input.isatty():
+        iface.cmdloop()
+        if ui.output.isatty():
+            print(colorize("%DimWhite", '\n' + rand_message() + '\n'))
+
+    return retval
+
+
+if __name__ == "__main__":
+    if not os.path.isdir('./logs'):
+        os.makedirs('./logs')
+    sys.exit(main())
+else:
+    def check_import():
+        """check whether this file is imported for a CI test"""
+        launcher = os.path.abspath(__file__)
+        test_dir = os.path.join(os.path.dirname(launcher), "test/")
+        caller = os.path.abspath(sys.argv[0])
+        if not caller.startswith(test_dir):
+            sys.exit('[-] Phpsploit must be run from launcher: ' + launcher)
+    check_import()
